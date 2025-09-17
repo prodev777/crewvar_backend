@@ -22,7 +22,7 @@ const sendConnectionRequest = async (req, res) => {
         // Check if receiver exists
         console.log('🔍 Checking if receiver exists:', receiverId);
         const [receiverRows] = await database_1.pool.execute('SELECT id, display_name FROM users WHERE id = ? AND is_active = true', [receiverId]);
-        if (receiverRows.length === 0) {
+        if (!Array.isArray(receiverRows) || receiverRows.length === 0) {
             console.log('❌ Receiver not found:', receiverId);
             return res.status(404).json({ error: 'User not found' });
         }
@@ -30,7 +30,7 @@ const sendConnectionRequest = async (req, res) => {
         // Check if connection already exists
         console.log('🔍 Checking if connection already exists');
         const [existingConnectionRows] = await database_1.pool.execute('SELECT id FROM connections WHERE (user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?)', [requesterId, receiverId, receiverId, requesterId]);
-        if (existingConnectionRows.length > 0) {
+        if (!Array.isArray(existingConnectionRows) || existingConnectionRows.length > 0) {
             console.log('❌ Connection already exists');
             return res.status(400).json({ error: 'Connection already exists' });
         }
@@ -38,6 +38,10 @@ const sendConnectionRequest = async (req, res) => {
         // Check if request already exists
         console.log('🔍 Checking if request already exists');
         const [existingRequestRows] = await database_1.pool.execute('SELECT id, status FROM connection_requests WHERE requester_id = ? AND receiver_id = ?', [requesterId, receiverId]);
+        if (!Array.isArray(existingRequestRows)) {
+            console.log('❌ Database error checking existing requests');
+            return res.status(500).json({ error: 'Database error' });
+        }
         if (existingRequestRows.length > 0) {
             const existingRequest = existingRequestRows[0];
             console.log('📋 Existing request found:', existingRequest);
@@ -63,9 +67,20 @@ const sendConnectionRequest = async (req, res) => {
         const receiver = receiverRows[0];
         // Get requester info for the notification message
         const [requesterRows] = await database_1.pool.execute('SELECT display_name FROM users WHERE id = ?', [requesterId]);
+        if (!Array.isArray(requesterRows) || requesterRows.length === 0) {
+            console.log('❌ Requester not found for notification:', requesterId);
+            return res.status(500).json({ error: 'Requester data not found' });
+        }
         const requester = requesterRows[0];
-        await (0, notificationController_1.createNotification)(receiverId, 'connection_request', 'New Connection Request', `You received a new connection request from ${requester.display_name}`, { requestId, requesterId, message });
-        console.log('✅ Notification created');
+        try {
+            await (0, notificationController_1.createNotification)(receiverId, 'connection_request', 'New Connection Request', `${requester.display_name} sends connect to you`, { requestId, requesterId, message });
+            console.log('✅ Notification created');
+        }
+        catch (notificationError) {
+            console.error('⚠️ Notification creation failed:', notificationError);
+            // Don't fail the entire request if notification fails
+            // The connection request was already created successfully
+        }
         console.log('🎉 Connection request process completed successfully');
         res.json({ message: 'Connection request sent successfully' });
     }
@@ -127,13 +142,19 @@ const respondToConnectionRequest = async (req, res) => {
         }
         const currentUserId = req.user.userId;
         const { requestId, action } = req.body; // action: 'accept' or 'decline'
-        console.log('Responding to connection request:', { requestId, action, currentUserId });
+        console.log('🔗 Responding to connection request:', { requestId, action, currentUserId });
         // Get the connection request
         const [requestRows] = await database_1.pool.execute('SELECT * FROM connection_requests WHERE id = ? AND receiver_id = ? AND status = "pending"', [requestId, currentUserId]);
+        if (!Array.isArray(requestRows)) {
+            console.log('❌ Database error checking connection request');
+            return res.status(500).json({ error: 'Database error' });
+        }
         if (requestRows.length === 0) {
+            console.log('❌ Connection request not found:', requestId);
             return res.status(404).json({ error: 'Connection request not found' });
         }
         const request = requestRows[0];
+        console.log('✅ Connection request found:', request);
         if (action === 'accept') {
             // Update request status to accepted
             await database_1.pool.execute('UPDATE connection_requests SET status = "accepted", updated_at = NOW() WHERE id = ?', [requestId]);
@@ -142,21 +163,47 @@ const respondToConnectionRequest = async (req, res) => {
             await database_1.pool.execute('INSERT INTO connections (id, user1_id, user2_id) VALUES (?, ?, ?)', [connectionId, request.requester_id, request.receiver_id]);
             // Get receiver info for notification (the person who accepted)
             const [receiverRows] = await database_1.pool.execute('SELECT display_name FROM users WHERE id = ?', [request.receiver_id]);
+            if (!Array.isArray(receiverRows) || receiverRows.length === 0) {
+                console.log('❌ Receiver not found for notification:', request.receiver_id);
+                return res.status(500).json({ error: 'Receiver data not found' });
+            }
             const receiver = receiverRows[0];
             // Create notification for the requester
-            await (0, notificationController_1.createNotification)(request.requester_id, 'connection_accepted', 'Connection Request Accepted', `Your connection request was accepted by ${receiver.display_name}`, { connectionId, receiverId: request.receiver_id });
+            try {
+                await (0, notificationController_1.createNotification)(request.requester_id, 'connection_accepted', 'Connection Request Accepted', `Your connection request was accepted by ${receiver.display_name}`, { connectionId, receiverId: request.receiver_id });
+                console.log('✅ Notification created successfully');
+            }
+            catch (notificationError) {
+                console.error('⚠️ Notification creation failed:', notificationError);
+                // Don't fail the entire request if notification fails
+                // The connection was already created successfully
+            }
             console.log('Connection created:', connectionId);
             res.json({ message: 'Connection request accepted' });
         }
         else if (action === 'decline') {
+            console.log('🔗 Declining connection request:', requestId);
             // Update request status to declined
             await database_1.pool.execute('UPDATE connection_requests SET status = "declined", updated_at = NOW() WHERE id = ?', [requestId]);
+            console.log('✅ Request status updated to declined');
             // Get receiver info for notification (the person who declined)
             const [receiverRows] = await database_1.pool.execute('SELECT display_name FROM users WHERE id = ?', [request.receiver_id]);
+            if (!Array.isArray(receiverRows) || receiverRows.length === 0) {
+                console.log('❌ Receiver not found for notification:', request.receiver_id);
+                return res.status(500).json({ error: 'Receiver data not found' });
+            }
             const receiver = receiverRows[0];
             // Create notification for the requester
-            await (0, notificationController_1.createNotification)(request.requester_id, 'connection_declined', 'Connection Request Declined', `Your connection request was declined by ${receiver.display_name}`, { requestId, receiverId: request.receiver_id });
-            console.log('Connection request declined:', requestId);
+            try {
+                await (0, notificationController_1.createNotification)(request.requester_id, 'connection_declined', 'Connection Request Declined', `Your connection request was declined by ${receiver.display_name}`, { requestId, receiverId: request.receiver_id });
+                console.log('✅ Notification created successfully');
+            }
+            catch (notificationError) {
+                console.error('⚠️ Notification creation failed:', notificationError);
+                // Don't fail the entire request if notification fails
+                // The request was already declined successfully
+            }
+            console.log('🎉 Connection request declined successfully');
             res.json({ message: 'Connection request declined' });
         }
         else {

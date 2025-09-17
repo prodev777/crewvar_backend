@@ -186,6 +186,7 @@ const getUserById = async (req, res) => {
     try {
         const { userId } = req.params;
         const currentUserId = req.user.userId;
+        console.log('🔍 Getting user profile for:', userId, 'by user:', currentUserId);
         // Get user profile with department, subcategory, role, and ship information
         const [rows] = await database_1.default.execute(`SELECT 
         u.id, u.email, u.display_name, u.profile_photo, u.bio, u.phone, 
@@ -204,21 +205,32 @@ const getUserById = async (req, res) => {
        LEFT JOIN roles r ON u.role_id = r.id
        LEFT JOIN ships s ON u.current_ship_id = s.id
        LEFT JOIN cruise_lines cl ON s.cruise_line_id = cl.id
-       WHERE u.id = ?`, [userId]);
-        const user = rows[0];
-        if (!user) {
+       WHERE u.id = ? AND u.is_active = true`, [userId]);
+        if (!Array.isArray(rows) || rows.length === 0) {
+            console.log('❌ User not found:', userId);
             return res.status(404).json({ error: 'User not found' });
         }
+        const user = rows[0];
+        console.log('✅ User found:', user.display_name);
         // Check connection status between current user and target user
-        const [connectionRows] = await database_1.default.execute(`SELECT status FROM connections 
-       WHERE (user_id_1 = ? AND user_id_2 = ?) OR (user_id_1 = ? AND user_id_2 = ?)`, [currentUserId, userId, userId, currentUserId]);
+        const [connectionRows] = await database_1.default.execute(`SELECT id FROM connections 
+       WHERE (user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?)`, [currentUserId, userId, userId, currentUserId]);
+        if (!Array.isArray(connectionRows)) {
+            console.log('❌ Database error checking connections');
+            return res.status(500).json({ error: 'Database error' });
+        }
         const connection = connectionRows[0];
-        const connectionStatus = connection ? connection.status : 'none';
+        const connectionStatus = connection ? 'connected' : 'none';
         // Check if there's a pending connection request
         const [requestRows] = await database_1.default.execute(`SELECT id, status FROM connection_requests 
        WHERE (requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?)`, [currentUserId, userId, userId, currentUserId]);
+        if (!Array.isArray(requestRows)) {
+            console.log('❌ Database error checking connection requests');
+            return res.status(500).json({ error: 'Database error' });
+        }
         const request = requestRows[0];
         const requestStatus = request ? request.status : 'none';
+        console.log('✅ Profile data retrieved successfully');
         res.json({
             user: {
                 ...user,

@@ -30,6 +30,7 @@ import moderationRoutes from './routes/moderation';
 import calendarRoutes from './routes/calendar';
 import notificationRoutes from './routes/notifications';
 import uploadRoutes from './routes/upload';
+import favoritesRoutes from './routes/favorites';
 
 // Load environment variables
 dotenv.config();
@@ -111,6 +112,7 @@ app.use('/api/moderation', moderationRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/favorites', favoritesRoutes);
 
 // Socket.IO for real-time features
 io.use(async (socket, next) => {

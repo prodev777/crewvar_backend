@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createNotification = exports.getUnreadNotificationCount = exports.updateNotificationPreferences = exports.getNotificationPreferences = exports.deleteNotification = exports.markAllNotificationsAsRead = exports.markNotificationAsRead = exports.getNotifications = void 0;
 const database_1 = __importDefault(require("../config/database"));
+const index_1 = require("../index");
 // Get user's notifications
 const getNotifications = async (req, res) => {
     try {
@@ -184,7 +185,27 @@ const createNotification = async (userId, type, title, message, data) => {
         const [result] = await database_1.default.execute(`INSERT INTO notifications 
        (user_id, type, title, message, data, created_at)
        VALUES (?, ?, ?, ?, ?, NOW())`, [userId, type, title, message, data ? JSON.stringify(data) : null]);
-        return result.insertId;
+        const notificationId = result.insertId;
+        // Emit WebSocket notification to the user
+        try {
+            console.log(`🔔 Attempting to send WebSocket notification to user ${userId} in room user-${userId}`);
+            console.log(`🔔 Notification data:`, { id: notificationId, userId, type, title, message });
+            index_1.io.to(`user-${userId}`).emit('new_notification', {
+                id: notificationId,
+                userId,
+                type,
+                title,
+                message,
+                data,
+                createdAt: new Date().toISOString()
+            });
+            console.log(`🔔 WebSocket notification sent to user ${userId}: ${title}`);
+        }
+        catch (socketError) {
+            console.error('Failed to send WebSocket notification:', socketError);
+            // Don't fail the notification creation if WebSocket fails
+        }
+        return notificationId;
     }
     catch (error) {
         console.error('Create notification error:', error);

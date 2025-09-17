@@ -65,9 +65,9 @@ router.get('/onboard', auth_1.authenticateToken, async (req, res) => {
             FROM users u
             JOIN ships s ON u.current_ship_id = s.id
             JOIN cruise_lines cl ON s.cruise_line_id = cl.id
-            LEFT JOIN departments d ON u.department_id = d.id
+            LEFT JOIN departments d ON CONCAT('dept-', u.department_id) = d.id
             LEFT JOIN subcategories sc ON u.subcategory_id = sc.id
-            LEFT JOIN roles r ON u.role_id = r.id
+            LEFT JOIN roles r ON CONCAT('role-', u.role_id) = r.id
             WHERE u.current_ship_id = ?
                 AND u.id != ?
                 AND u.is_active = true
@@ -75,6 +75,19 @@ router.get('/onboard', auth_1.authenticateToken, async (req, res) => {
         `, [userShipId, userId]);
         console.log('Raw crew query results:', crewRows);
         console.log('Number of crew rows found:', crewRows.length);
+        // Debug: Log each crew member's data
+        crewRows.forEach((row, index) => {
+            console.log(`Crew member ${index + 1}:`, {
+                id: row.id,
+                display_name: row.display_name,
+                department_id: row.department_id,
+                role_id: row.role_id,
+                department_name: row.department_name,
+                role_name: row.role_name,
+                ship_name: row.ship_name,
+                cruise_line_name: row.cruise_line_name
+            });
+        });
         const crew = crewRows.map(row => ({
             id: row.id,
             display_name: row.display_name,
@@ -100,6 +113,67 @@ router.get('/onboard', auth_1.authenticateToken, async (req, res) => {
     catch (error) {
         console.error('Error fetching crew onboard:', error);
         res.status(500).json({ error: 'Failed to fetch crew onboard' });
+    }
+});
+// Get all crew members from all ships (for Explore Ships page) - Lazy Loading
+router.get('/all', auth_1.authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+        console.log('🚢 GET ALL CREW REQUEST for user:', userId, 'page:', page, 'limit:', limit);
+        // Get paginated crew members from all ships (excluding the current user)
+        const [crewRows] = await database_1.pool.execute(`
+            SELECT
+                u.id,
+                u.display_name,
+                u.profile_photo,
+                u.department_id,
+                u.subcategory_id,
+                u.role_id,
+                u.current_ship_id,
+                s.name as ship_name,
+                cl.name as cruise_line_name,
+                COALESCE(d.name, 'Not specified') as department_name,
+                COALESCE(sc.name, 'Not specified') as subcategory_name,
+                COALESCE(r.name, 'Not specified') as role_name
+            FROM users u
+            JOIN ships s ON u.current_ship_id = s.id
+            JOIN cruise_lines cl ON s.cruise_line_id = cl.id
+            LEFT JOIN departments d ON CONCAT('dept-', u.department_id) = d.id
+            LEFT JOIN subcategories sc ON u.subcategory_id = sc.id
+            LEFT JOIN roles r ON CONCAT('role-', u.role_id) = r.id
+            WHERE u.id != ?
+                AND u.is_active = true
+            ORDER BY s.name, u.display_name
+            LIMIT ? OFFSET ?
+        `, [userId, limit, offset]);
+        console.log('Raw all crew query results:', crewRows);
+        console.log('Number of all crew rows found:', crewRows.length);
+        const crew = crewRows.map(row => ({
+            id: row.id,
+            display_name: row.display_name,
+            profile_photo: row.profile_photo,
+            department_name: row.department_name,
+            subcategory_name: row.subcategory_name,
+            role_name: row.role_name,
+            ship_name: row.ship_name,
+            cruise_line_name: row.cruise_line_name
+        }));
+        console.log('Found all crew members:', crew.length);
+        console.log('All crew members data:', crew);
+        res.json({
+            success: true,
+            crew,
+            hasMore: crew.length === limit, // If we got exactly the limit, there might be more
+            currentPage: page,
+            limit: limit
+        });
+    }
+    catch (error) {
+        console.error('Error fetching all crew:', error);
+        res.status(500).json({ error: 'Failed to fetch all crew' });
     }
 });
 // Get crew member profile for viewing
@@ -143,9 +217,9 @@ router.get('/profile/:userId', auth_1.authenticateToken, async (req, res) => {
             FROM users u
             LEFT JOIN ships s ON u.current_ship_id = s.id
             LEFT JOIN cruise_lines cl ON s.cruise_line_id = cl.id
-            LEFT JOIN departments d ON u.department_id = d.id
+            LEFT JOIN departments d ON CONCAT('dept-', u.department_id) = d.id
             LEFT JOIN subcategories sc ON u.subcategory_id = sc.id
-            LEFT JOIN roles r ON u.role_id = r.id
+            LEFT JOIN roles r ON CONCAT('role-', u.role_id) = r.id
             WHERE u.id = ? AND u.is_active = true
         `, [targetUserId]);
         console.log('User profile query result:', userRows);

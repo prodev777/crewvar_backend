@@ -33,6 +33,7 @@ const moderation_1 = __importDefault(require("./routes/moderation"));
 const calendar_1 = __importDefault(require("./routes/calendar"));
 const notifications_1 = __importDefault(require("./routes/notifications"));
 const upload_1 = __importDefault(require("./routes/upload"));
+const favorites_1 = __importDefault(require("./routes/favorites"));
 // Load environment variables
 dotenv_1.default.config();
 // Temporary hardcoded values for testing (remove in production)
@@ -103,6 +104,7 @@ app.use('/api/moderation', moderation_1.default);
 app.use('/api/calendar', calendar_1.default);
 app.use('/api/notifications', notifications_1.default);
 app.use('/api/upload', upload_1.default);
+app.use('/api/favorites', favorites_1.default);
 // Socket.IO for real-time features
 io.use(async (socket, next) => {
     try {
