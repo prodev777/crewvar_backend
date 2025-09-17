@@ -7,6 +7,8 @@
     "start": "node dist/index.js",
     "dev": "nodemon src/index.ts",
     "build": "tsc",
+    "vercel-build": "tsc && cp -r src/config dist/ && cp -r src/scripts dist/",
+    "vercel-dev": "ts-node src/vercel.ts",
     "migrate-cruise-data": "ts-node src/scripts/cruiseDataMigration.ts migrate",
     "import-csv": "ts-node src/scripts/cruiseDataMigration.ts import",
     "create-connection-tables": "ts-node src/scripts/createConnectionTables.ts",
@@ -36,7 +38,7 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "mysql2": "^3.6.5",
-    "nodemailer": "^6.9.7",
+    "nodemailer": "^6.10.1",
     "socket.io": "^4.7.4"
   },
   "devDependencies": {
