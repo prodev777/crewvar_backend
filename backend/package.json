@@ -1,0 +1,54 @@
+{
+  "name": "crewvar-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Crewvar - Social networking platform for cruise crew members",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "nodemon src/index.ts",
+    "build": "tsc",
+    "migrate-cruise-data": "ts-node src/scripts/cruiseDataMigration.ts migrate",
+    "import-csv": "ts-node src/scripts/cruiseDataMigration.ts import",
+    "create-connection-tables": "ts-node src/scripts/createConnectionTables.ts",
+    "recreate-connection-tables": "ts-node src/scripts/recreateConnectionTables.ts",
+    "check-connection-tables": "ts-node src/scripts/checkConnectionTables.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "crewvar",
+    "cruise",
+    "crew",
+    "social",
+    "networking"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "csv-parser": "^3.2.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.6.5",
+    "nodemailer": "^6.9.7",
+    "socket.io": "^4.7.4"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^20.10.4",
+    "@types/nodemailer": "^7.0.1",
+    "nodemon": "^3.0.2",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.3"
+  }
+}
